@@ -59,7 +59,6 @@ A comprehensive network monitoring solution with AI-powered analytics, automated
 4. Access the applications:
    - Frontend: http://localhost
    - Zabbix Web: http://localhost:8080 (Admin/zabbix)
-   - Grafana: http://localhost:3000 (admin/admin)
 
 ## 📋 Usage Guide
 
@@ -133,4 +132,4 @@ For production use, configure Gmail's SMTP server:
 ## 🎥 Video Demos
 
 ### Quick Start & Application Overview
-[![Dashboard Tour](https://drive.google.com/file/d/1r0Fjbc1bVjxNoVU0hwUA6mtP9-ZOeS0P/view?usp=sharing)
+[Dashboard Tour](https://drive.google.com/file/d/1r0Fjbc1bVjxNoVU0hwUA6mtP9-ZOeS0P/view?usp=sharing)
