@@ -1,0 +1,145 @@
+version: '3.8'
+
+services:
+  # Zabbix Services
+  zabbix-server:
+    image: zabbix/zabbix-server-pgsql:alpine-6.0-latest
+    container_name: zabbix-server
+    ports:
+      - "10051:10051"
+    environment:
+      - DB_SERVER_HOST=postgres
+      - POSTGRES_USER=zabbix
+      - POSTGRES_PASSWORD=zabbix
+      - POSTGRES_DB=zabbix
+    volumes:
+      - ./zabbix/alertscripts:/usr/lib/zabbix/alertscripts
+      - ./zabbix/externalscripts:/usr/lib/zabbix/externalscripts
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-pgsql:alpine-6.0-latest
+    container_name: zabbix-web
+    ports:
+      - "8080:8080"
+    environment:
+      - ZBX_SERVER_HOST=zabbix-server
+      - DB_SERVER_HOST=postgres
+      - POSTGRES_USER=zabbix
+      - POSTGRES_PASSWORD=zabbix
+      - POSTGRES_DB=zabbix
+      - PHP_TZ=UTC
+    depends_on:
+      - zabbix-server
+      - postgres
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  postgres:
+    image: postgres:14-alpine
+    container_name: zabbix-postgres
+    environment:
+      - POSTGRES_USER=zabbix
+      - POSTGRES_PASSWORD=zabbix
+      - POSTGRES_DB=zabbix
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  zabbix-agent:
+    image: zabbix/zabbix-agent2:alpine-6.0-latest
+    container_name: zabbix-agent
+    hostname: docker-host-agent  # Give the agent a unique hostname
+    ports:
+      - "10050:10050"
+    environment:
+      - ZBX_HOSTNAME=Docker Host # This is the name that will appear in Zabbix UI
+      - ZBX_SERVER_HOST=zabbix-server
+      - ZBX_SERVER_ACTIVE=zabbix-server
+      - ZBX_PASSIVE_ALLOW=true
+      - ZBX_ACTIVE_ALLOW=true
+    privileged: true
+    pid: host
+    volumes:
+      - /:/rootfs:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  # Backend API Service
+  timescaledb:
+    image: timescale/timescaledb:latest-pg14
+    container_name: timescaledb
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=zabbix
+      - POSTGRES_PASSWORD=zabbix
+      - POSTGRES_DB=metrics
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: network-monitoring-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - METRIC_KEYS=system.cpu.util,vm.memory.size[available],vm.memory.size[total],net.if.in["eth0"],net.if.out["eth0"]
+      - ZABBIX_API_URL=http://zabbix-web:8080/api_jsonrpc.php
+      - ZABBIX_USER=Admin
+      - ZABBIX_PASSWORD=${ZABBIX_PASSWORD:-zabbix}
+      - DB_URL=postgresql://zabbix:zabbix@timescaledb:5432/metrics
+      - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY}
+    depends_on:
+      - zabbix-server
+    restart: unless-stopped
+    networks:
+      - monitoring
+    dns:
+      - 8.8.8.8
+
+  # Frontend Application
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: network-monitoring-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - monitoring
+  mailhog:
+    image: mailhog/mailhog
+    container_name: mailhog
+    ports:
+      - "1025:1025" # SMTP server
+      - "8025:8025" # Web UI
+    networks:
+      - monitoring
+
+# Define volumes
+volumes:
+  postgres_data:
+  timescale_data:
+
+# Define networks
+networks:
+  monitoring:
+    driver: bridge
