@@ -4,7 +4,7 @@
 cd "$(dirname "$0")"
 
 # Create deployment directory
-DEPLOY_DIR="network-monitoring-$(date +%Y%m%d%H%M%S)"
+DEPLOY_DIR="network-monitoring"
 mkdir -p "$DEPLOY_DIR"
 
 # Function to clean macOS attributes
